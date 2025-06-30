@@ -1,3 +1,6 @@
+#!/bin/bash
+set -e
+
 # MMI-UHAS34.29-3 For moto penang 4G 4G+
 # Kernel Modules:
 # ---------------
@@ -18,108 +21,79 @@
 # https://source.android.com/docs/core/architecture/kernel/gki-android13-5_10-release-builds
 # cd -
 
-my_top_dir=$PWD
-
-mkdir -vp  $my_top_dir/prebuilts/clang/host
-cd $my_top_dir/prebuilts/clang/host
-git clone https://android.googlesource.com/platform/prebuilts/clang/host/linux-x86 -b aml_tz3_314012010
-cd $my_top_dir
-cd $my_top_dir/prebuilts
-git clone https://android.googlesource.com/kernel/prebuilts/build-tools
-cd $my_top_dir
-
-KERNEL_DIR=$my_top_dir/kernel-5.10
-
-REL_KERNEL_OUT="$my_top_dir/out/target/product/penangf/obj/KERNEL_OBJ"
-
-kernel_out_dir="$my_top_dir/out/target/product/penangf/obj/KERNEL_OBJ/kernel-5.10"
-
-MODULES_STAGING_DIR=$my_top_dir/out/target/product/penangf/obj/KERNEL_OBJ/staging
-
-KERNEL_ZIMAGE_OUT="$kernel_out_dir/arch/arm64/boot/Image.gz"
-
+# ========== CONFIGURATION ==========
+my_top_dir="$PWD"
+KERNEL_DIR="$my_top_dir/kernel-5.10"
+OUT_BASE="$my_top_dir/out/target/product/penangf/obj/KERNEL_OBJ"
+kernel_out_dir="$OUT_BASE/kernel-5.10"
+MODULES_STAGING_DIR="$OUT_BASE/staging"
+REL_KERNEL_OUT="$OUT_BASE"
 TARGET_KERNEL_CONFIG="$kernel_out_dir/.config"
 
-PATH=$my_top_dir/prebuilts/build-tools/path/linux-x86:$my_top_dir/prebuilts/clang/host/linux-x86/clang-r416183b/bin:$my_top_dir/kernel/prebuilts/kernel-build-tools/linux-x86/bin:$PATH
+export PATH="$my_top_dir/prebuilts/build-tools/path/linux-x86:$my_top_dir/prebuilts/clang/host/linux-x86/clang-r416183b/bin:$my_top_dir/kernel/prebuilts/kernel-build-tools/linux-x86/bin:$PATH"
 
-#export CLANG_TRIPLE= CROSS_COMPILE=aarch64-linux-gnu- CROSS_COMPILE_COMPAT=arm-linux-gnueabi- CROSS_COMPILE_ARM32= ARCH=arm64 SUBARCH= MAKE_GOALS=all HOSTCC=clang HOSTCXX=clang++ CC=clang LD=ld.lld AR=llvm-ar NM=llvm-nm OBJCOPY=llvm-objcopy OBJDUMP=llvm-objdump READELF=llvm-readelf OBJSIZE=llvm-size STRIP=llvm-strip
-export CLANG_TRIPLE= CROSS_COMPILE=aarch64-linux-gnu- CROSS_COMPILE_COMPAT=arm-linux-gnueabi- CROSS_COMPILE_ARM32= ARCH=arm64 SUBARCH= MAKE_GOALS=all HOSTCC=clang HOSTCXX=clang++ CC=clang LD=ld.lld NM=llvm-nm OBJCOPY=llvm-objcopy OBJDUMP=llvm-objdump OBJSIZE=llvm-size STRIP=llvm-strip
+export CLANG_TRIPLE= CROSS_COMPILE=aarch64-linux-gnu- CROSS_COMPILE_COMPAT=arm-linux-gnueabi- \
+CROSS_COMPILE_ARM32= ARCH=arm64 SUBARCH= MAKE_GOALS=all \
+HOSTCC=clang HOSTCXX=clang++ CC=clang LD=ld.lld \
+NM=llvm-nm OBJCOPY=llvm-objcopy OBJDUMP=llvm-objdump \
+OBJSIZE=llvm-size STRIP=llvm-strip
 
-mkdir -vp $kernel_out_dir
+# ========== PREBUILTS SETUP ==========
+echo "[*] Cloning toolchains..."
+mkdir -p $my_top_dir/prebuilts/clang/host
+git clone https://android.googlesource.com/platform/prebuilts/clang/host/linux-x86 -b aml_tz3_314012010 $my_top_dir/prebuilts/clang/host/linux-x86
 
-cd $my_top_dir
+git clone https://android.googlesource.com/kernel/prebuilts/build-tools $my_top_dir/prebuilts/build-tools
 
+# ========== CONFIGURE KERNEL ==========
+echo "[*] Generating build config..."
+mkdir -p "$kernel_out_dir"
 python kernel-5.10/scripts/gen_build_config.py --kernel-defconfig penangf_defconfig --kernel-defconfig-overlays "" --kernel-build-config-overlays "" -m user -o $REL_KERNEL_OUT/build.config
+cp -p kernel-5.10/arch/arm64/configs/penangf_defconfig "$REL_KERNEL_OUT/penangf.config"
 
-cp -p kernel-5.10/arch/arm64/configs/penangf_defconfig $REL_KERNEL_OUT/penangf.config
+# ========== BUILD KERNEL ==========
+echo "[*] Building kernel..."
+cd $KERNEL_DIR
+make LLVM=1 LLVM_IAS=1 DEPMOD=depmod DTC=dtc O=$kernel_out_dir gki_defconfig $REL_KERNEL_OUT/penangf.config
+make -j$(nproc) O=$kernel_out_dir LLVM=1 LLVM_IAS=1 DEPMOD=depmod DTC=dtc all vmlinux
+make -j$(nproc) O=$kernel_out_dir LLVM=1 LLVM_IAS=1 DEPMOD=depmod DTC=dtc INSTALL_MOD_PATH=$MODULES_STAGING_DIR modules_install
 
-cd kernel-5.10 
+# ========== MODULE BUILD FUNCTION ==========
+build_module() {
+    local mod_path=$1
+    local install_path=$2
 
-make LLVM=1 LLVM_IAS=1 DEPMOD=depmod DTC=dtc O=$kernel_out_dir gki_defconfig ../../../../out/target/product/penangf/obj/KERNEL_OBJ/penangf.config 
-# /penang4gu-kernel/Kernel/kernel-5.10/arch/arm64/configs/../../../../kernel/../out/target/product/penangf/obj/KERNEL_OBJ/penangf.config
+    echo "[*] Building $mod_path"
+    mkdir -p "$install_path"
+    make -C $mod_path M=$mod_path KERNEL_SRC=$KERNEL_DIR O=$kernel_out_dir LLVM=1 LLVM_IAS=1 DEPMOD=depmod DTC=dtc
+    make -C $mod_path M=$mod_path KERNEL_SRC=$KERNEL_DIR O=$kernel_out_dir LLVM=1 LLVM_IAS=1 DEPMOD=depmod DTC=dtc INSTALL_MOD_PATH=$install_path modules_install
+}
 
-cd $kernel_out_dir
+# ========== STANDARD MODULES ==========
+build_module ../vendor/mediatek/kernel_modules/met_drv_v3 "$REL_KERNEL_OUT/vendor/mediatek/kernel_modules/met_drv_v3"
+build_module ../vendor/mediatek/kernel_modules/gpu/platform/mt6768 "$REL_KERNEL_OUT/vendor/mediatek/kernel_modules/gpu/platform/mt6768"
+build_module ../vendor/mediatek/kernel_modules/connectivity/common "$REL_KERNEL_OUT/vendor/mediatek/kernel_modules/connectivity/common"
+build_module ../vendor/mediatek/kernel_modules/connectivity/fmradio "$REL_KERNEL_OUT/vendor/mediatek/kernel_modules/connectivity/fmradio"
+build_module ../vendor/mediatek/kernel_modules/connectivity/gps/gps_stp "$REL_KERNEL_OUT/vendor/mediatek/kernel_modules/connectivity/gps/gps_stp"
 
-make O=$kernel_out_dir LLVM=1 LLVM_IAS=1 DEPMOD=depmod DTC=dtc all vmlinux
+# ========== ETC SPECIAL MODULES ==========
+cd "$kernel_out_dir"
 
-make -j16 O=$kernel_out_dir LLVM=1 LLVM_IAS=1 DEPMOD=depmod DTC=dtc  INSTALL_MOD_PATH=$MODULES_STAGING_DIR  modules_install
+declare -A etc_modules=(
+    [udc]="../../ETC/udc_lib.ko_intermediates/LINKED"
+    [connfem]="../../ETC/connfem.ko_intermediates/LINKED"
+    [wmt_drv]="../../ETC/wmt_drv.ko_intermediates/LINKED"
+    [bt_drv]="../../ETC/bt_drv_connac1x.ko_intermediates/LINKED"
+    [wmt_chrdev_wifi]="../../ETC/wmt_chrdev_wifi.ko_intermediates/LINKED"
+    [wlan_drv_gen4m]="../../ETC/wlan_drv_gen4m.ko_intermediates/LINKED"
+)
 
-# DLKM driver
-# -------------------
-# OUT_DIR=/out/target/product/penangf/obj/KERNEL_OBJ/kernel-5.10
-# EXT_MOD_REL=vendor/mediatek/kernel_modules/fpsgo_cus
-# mkdir -p ${OUT_DIR}/${EXT_MOD_REL}
-#############################################################
-cd -
+for mod in "${!etc_modules[@]}"; do
+    path="${etc_modules[$mod]}"
+    echo "[*] Building ETC module $mod"
+    make O=$kernel_out_dir LLVM=1 LLVM_IAS=1 DEPMOD=depmod DTC=dtc M=$path AUTOCONF_H=$kernel_out_dir/include/generated/autoconf.h \
+         KBUILD_EXTRA_SYMBOLS="$kernel_out_dir/Module.symvers" \
+         src="$my_top_dir/vendor/mediatek/kernel_modules/connectivity/${mod//_/\/}"
+done
 
-mkdir -p $REL_KERNEL_OUT/vendor/mediatek/kernel_modules/met_drv_v3
-
-make -C ../vendor/mediatek/kernel_modules/met_drv_v3 M=../vendor/mediatek/kernel_modules/met_drv_v3 KERNEL_SRC=$KERNEL_DIR O=$kernel_out_dir LLVM=1 LLVM_IAS=1 DEPMOD=depmod DTC=dtc
-
-make -C ../vendor/mediatek/kernel_modules/met_drv_v3 M=../vendor/mediatek/kernel_modules/met_drv_v3 KERNEL_SRC=$KERNEL_DIR O=$kernel_out_dir LLVM=1 LLVM_IAS=1 DEPMOD=depmod DTC=dtc  INSTALL_MOD_PATH=$MODULES_STAGING_DIR  modules_install
-
-mkdir -p $REL_KERNEL_OUT/vendor/mediatek/kernel_modules/gpu/platform/mt6768
-
-make -C ../vendor/mediatek/kernel_modules/gpu/platform/mt6768 M=../vendor/mediatek/kernel_modules/gpu/platform/mt6768 KERNEL_SRC=$KERNEL_DIR O=$kernel_out_dir LLVM=1 LLVM_IAS=1 DEPMOD=depmod DTC=dtc
-
-make -C ../vendor/mediatek/kernel_modules/gpu/platform/mt6768 M=../vendor/mediatek/kernel_modules/gpu/platform/mt6768 KERNEL_SRC=$KERNEL_DIR O=$kernel_out_dir LLVM=1 LLVM_IAS=1 DEPMOD=depmod DTC=dtc  INSTALL_MOD_PATH=$MODULES_STAGING_DIR  modules_install
-
-mkdir -p $REL_KERNEL_OUT/vendor/mediatek/kernel_modules/connectivity/common
-
-make -C ../vendor/mediatek/kernel_modules/connectivity/common M=../vendor/mediatek/kernel_modules/connectivity/common KERNEL_SRC=$KERNEL_DIR O=$kernel_out_dir LLVM=1 LLVM_IAS=1 DEPMOD=depmod DTC=dtc
-
-make -C ../vendor/mediatek/kernel_modules/connectivity/common M=../vendor/mediatek/kernel_modules/connectivity/common KERNEL_SRC=$KERNEL_DIR O=$kernel_out_dir LLVM=1 LLVM_IAS=1 DEPMOD=depmod DTC=dtc  INSTALL_MOD_PATH=$MODULES_STAGING_DIR  modules_install
-
-mkdir -p $REL_KERNEL_OUT/vendor/mediatek/kernel_modules/connectivity/fmradio
-
-make -C ../vendor/mediatek/kernel_modules/connectivity/fmradio M=../vendor/mediatek/kernel_modules/connectivity/fmradio KERNEL_SRC=$KERNEL_DIR O=$kernel_out_dir LLVM=1 LLVM_IAS=1 DEPMOD=depmod DTC=dtc
-
-make -C ../vendor/mediatek/kernel_modules/connectivity/fmradio M=../vendor/mediatek/kernel_modules/connectivity/fmradio KERNEL_SRC=$KERNEL_DIR O=$kernel_out_dir LLVM=1 LLVM_IAS=1 DEPMOD=depmod DTC=dtc  INSTALL_MOD_PATH=$MODULES_STAGING_DIR  modules_install
-
-mkdir -p $REL_KERNEL_OUT/vendor/mediatek/kernel_modules/connectivity/common
-
-make -C ../vendor/mediatek/kernel_modules/connectivity/common M=../vendor/mediatek/kernel_modules/connectivity/common KERNEL_SRC=$KERNEL_DIR O=$kernel_out_dir LLVM=1 LLVM_IAS=1 DEPMOD=depmod DTC=dtc
-
-make -C ../vendor/mediatek/kernel_modules/connectivity/common M=../vendor/mediatek/kernel_modules/connectivity/common KERNEL_SRC=$KERNEL_DIR O=$kernel_out_dir LLVM=1 LLVM_IAS=1 DEPMOD=depmod DTC=dtc  INSTALL_MOD_PATH=$MODULES_STAGING_DIR  modules_install
-
-mkdir -p $REL_KERNEL_OUT/vendor/mediatek/kernel_modules/connectivity/gps/gps_stp
-
-make -C ../vendor/mediatek/kernel_modules/connectivity/gps/gps_stp M=../vendor/mediatek/kernel_modules/connectivity/gps/gps_stp KERNEL_SRC=$KERNEL_DIR O=$kernel_out_dir LLVM=1 LLVM_IAS=1 DEPMOD=depmod DTC=dtc
-
-make -C ../vendor/mediatek/kernel_modules/connectivity/gps/gps_stp M=../vendor/mediatek/kernel_modules/connectivity/gps/gps_stp KERNEL_SRC=$KERNEL_DIR O=$kernel_out_dir LLVM=1 LLVM_IAS=1 DEPMOD=depmod DTC=dtc  INSTALL_MOD_PATH=$MODULES_STAGING_DIR  modules_install
-
-cd $kernel_out_dir
-
-make O=$kernel_out_dir LLVM=1 LLVM_IAS=1 DEPMOD=depmod DTC=dtc M=../../ETC/udc_lib.ko_intermediates/LINKED AUTOCONF_H=$kernel_out_dir/include/generated/autoconf.h src=$my_top_dir/vendor/mediatek/kernel_modules/udc
-
-make O=$kernel_out_dir LLVM=1 LLVM_IAS=1 DEPMOD=depmod DTC=dtc M=../../ETC/connfem.ko_intermediates/LINKED AUTOCONF_H=$kernel_out_dir/include/generated/autoconf.h src=../vendor/mediatek/kernel_modules/connectivity/connfem
-
-make O=$kernel_out_dir LLVM=1 LLVM_IAS=1 DEPMOD=depmod DTC=dtc M=../../ETC/wmt_drv.ko_intermediates/LINKED AUTOCONF_H=$kernel_out_dir/include/generated/autoconf.h MTK_CONSYS_ADIE= MTK_PLATFORM_WMT=MT6768 TARGET_BOARD_PLATFORM_WMT=mt6768 src=$my_top_dir/vendor/mediatek/kernel_modules/connectivity/common
-
-make O=$kernel_out_dir LLVM=1 LLVM_IAS=1 DEPMOD=depmod DTC=dtc M=../../ETC/bt_drv_connac1x.ko_intermediates/LINKED AUTOCONF_H=$kernel_out_dir/include/generated/autoconf.h KBUILD_EXTRA_SYMBOLS=../../ETC/wmt_drv.ko_intermediates/LINKED/Module.symvers BT_PLATFORM=connac1x 'LOG_TAG=[BT_Drv][wmt]' BT_ENABLE_LOW_POWER_DEBUG=y src=$my_top_dir/vendor/mediatek/kernel_modules/connectivity/bt/mt66xx/wmt
-
-make O=$kernel_out_dir LLVM=1 LLVM_IAS=1 DEPMOD=depmod DTC=dtc M=../../ETC/wmt_chrdev_wifi.ko_intermediates/LINKED AUTOCONF_H=$kernel_out_dir/include/generated/autoconf.h KBUILD_EXTRA_SYMBOLS=../../ETC/wmt_drv.ko_intermediates/LINKED/Module.symvers CONNAC_VER=1_0 MODULE_NAME=wmt_chrdev_wifi src=$my_top_dir/vendor/mediatek/kernel_modules/connectivity/wlan/adaptor
-
-make O=$kernel_out_dir LLVM=1 LLVM_IAS=1 DEPMOD=depmod DTC=dtc M=../../ETC/wlan_drv_gen4m.ko_intermediates/LINKED AUTOCONF_H=$kernel_out_dir/include/generated/autoconf.h 'KBUILD_EXTRA_SYMBOLS=../../ETC/wmt_chrdev_wifi.ko_intermediates/LINKED/Module.symvers ../../ETC/wmt_drv.ko_intermediates/LINKED/Module.symvers ../../ETC/connfem.ko_intermediates/LINKED/Module.symvers' CONFIG_MTK_COMBO_WIFI_HIF=axi MODULE_NAME=wlan_drv_gen4m MTK_COMBO_CHIP=CONNAC WLAN_CHIP_ID=6768 MTK_ANDROID_WMT=y WIFI_ENABLE_GCOV= WIFI_IP_SET=1 MTK_ANDROID_EMI=y MTK_WLAN_SERVICE=yes src=$my_top_dir/vendor/mediatek/kernel_modules/connectivity/wlan/core/gen4m
-
-
+echo "[✔] Kernel and modules built successfully."
