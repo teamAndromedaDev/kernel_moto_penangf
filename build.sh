@@ -17,12 +17,9 @@ set -e
 # cd $my_top_dir/kernel/prebuilts/
 # git clone https://android.googlesource.com/kernel/prebuilts/build-tools
 # mkdir -vp $my_top_dir/vendor/aosp_gki/kernel/aarch64
-# Download gki from:
+# Download gki from: // no you ain't
 # https://source.android.com/docs/core/architecture/kernel/gki-android13-5_10-release-builds
 # cd -
-# basically you gotta:
-# git clone --depth 1 -b android13-5.10-2025-07_r1 https://android.googlesource.com/kernel/common kernel-5.10
-
 
 # ========== CONFIGURATION ==========
 my_top_dir="$PWD"
@@ -33,7 +30,7 @@ MODULES_STAGING_DIR="$OUT_BASE/staging"
 REL_KERNEL_OUT="$OUT_BASE"
 TARGET_KERNEL_CONFIG="$kernel_out_dir/.config"
 
-export PATH="$my_top_dir/prebuilts/build-tools/path/linux-x86:$my_top_dir/prebuilts/clang/host/linux-x86/clang-r416183b/bin:$my_top_dir/kernel/prebuilts/kernel-build-tools/linux-x86/bin:$PATH"
+export PATH="$my_top_dir/prebuilts/build-tools/linux-x86/bin:$my_top_dir/prebuilts/clang/host/linux-x86/clang-r416183b/bin:$my_top_dir/kernel/prebuilts/build-tools/linux-x86/bin:$PATH"
 
 export CLANG_TRIPLE= CROSS_COMPILE=aarch64-linux-gnu- CROSS_COMPILE_COMPAT=arm-linux-gnueabi- \
 CROSS_COMPILE_ARM32= ARCH=arm64 SUBARCH= MAKE_GOALS=all \
