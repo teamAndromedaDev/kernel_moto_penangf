@@ -49,7 +49,12 @@ mkdir -p $my_top_dir/prebuilts/clang/host
 # this is commented out because we dont need the whole thing, just download some one toolchain
 # (or copy clang from AOSP source in prebuilts/clang/host/linux-x86)
 
-git clone https://android.googlesource.com/kernel/prebuilts/build-tools $my_top_dir/prebuilts/build-tools
+if [ ! -d prebuilts/build-tools ]; then
+    echo "[I] Toolchain is not cloneed, check build script line 50 for more info"
+    echo "    Script will fail in a moment"
+    git clone https://android.googlesource.com/kernel/prebuilts/build-tools $my_top_dir/prebuilts/build-tools
+else
+    echo "[✔] Build tools already exist, skipping"
 
 # ========== CONFIGURE KERNEL ==========
 echo "[*] Generating build config..."
