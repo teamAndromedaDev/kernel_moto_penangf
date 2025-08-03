@@ -63,12 +63,18 @@ mkdir -p "$kernel_out_dir"
 python2 kernel-5.10/scripts/gen_build_config.py --kernel-defconfig penangf_defconfig --kernel-defconfig-overlays "" --kernel-build-config-overlays "" -m user -o $REL_KERNEL_OUT/build.config
 cp -p kernel-5.10/arch/arm64/configs/penangf_defconfig "$REL_KERNEL_OUT/penangf.config"
 
-# ========== BUILD KERNEL ==========
 echo "[*] Building kernel..."
 cd $KERNEL_DIR
-make LLVM=1 LLVM_IAS=1 DEPMOD=depmod DTC=dtc O=$kernel_out_dir gki_defconfig $REL_KERNEL_OUT/penangf.config
-make -j$(nproc) O=$kernel_out_dir LLVM=1 LLVM_IAS=1 DEPMOD=depmod DTC=dtc all vmlinux
-make -j$(nproc) O=$kernel_out_dir LLVM=1 LLVM_IAS=1 DEPMOD=depmod DTC=dtc INSTALL_MOD_PATH=$MODULES_STAGING_DIR modules_install
+
+# Step 1: Start with GKI base defconfig
+make LLVM=1 LLVM_IAS=1 O=$kernel_out_dir gki_defconfig
+
+# Step 2: Merge penangf.config into the existing .config
+$KERNEL_DIR/scripts/kconfig/merge_config.sh -O $kernel_out_dir $kernel_out_dir/.config $REL_KERNEL_OUT/penangf.config
+
+# Step 3: Build kernel
+make -j$(nproc) O=$kernel_out_dir LLVM=1 LLVM_IAS=1 all
+make -j$(nproc) O=$kernel_out_dir LLVM=1 LLVM_IAS=1 INSTALL_MOD_PATH=$MODULES_STAGING_DIR modules_install
 
 # ========== MODULE BUILD FUNCTION ==========
 build_module() {
