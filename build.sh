@@ -45,7 +45,7 @@ OBJSIZE=llvm-size STRIP=llvm-strip
 # ========== PREBUILTS SETUP ==========
 echo "[*] Cloning toolchains..."
 mkdir -p $my_top_dir/prebuilts/clang/host
-git clone https://android.googlesource.com/platform/prebuilts/clang/host/linux-x86 -b aml_tz3_314012010 $my_top_dir/prebuilts/clang/host/linux-x86
+#git clone https://android.googlesource.com/platform/prebuilts/clang/host/linux-x86 -b aml_tz3_314012010 $my_top_dir/prebuilts/clang/host/linux-x86
 
 git clone https://android.googlesource.com/kernel/prebuilts/build-tools $my_top_dir/prebuilts/build-tools
 
