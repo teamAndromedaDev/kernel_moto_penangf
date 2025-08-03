@@ -55,6 +55,7 @@ if [ ! -d prebuilts/build-tools ]; then
     git clone https://android.googlesource.com/kernel/prebuilts/build-tools $my_top_dir/prebuilts/build-tools
 else
     echo "[✔] Build tools already exist, skipping"
+fi
 
 # ========== CONFIGURE KERNEL ==========
 echo "[*] Generating build config..."
