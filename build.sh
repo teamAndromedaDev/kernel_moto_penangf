@@ -20,9 +20,8 @@ set -e
 # Download gki from:
 # https://source.android.com/docs/core/architecture/kernel/gki-android13-5_10-release-builds
 # cd -
-#
-# actually you can:
-# my_top_dir=$PWD && mkdir -vp $my_top_dir/kernel/{prebuilts-master/clang/host,prebuilts} $my_top_dir/vendor/aosp_gki/kernel/aarch64 && git -C $my_top_dir/kernel clone --depth=1 https://android.googlesource.com/kernel/build && git -C $my_top_dir/kernel/prebuilts-master/clang/host clone --depth=1 https://android.googlesource.com/platform/prebuilts/clang/host/linux-x86 && git -C $my_top_dir/kernel/prebuilts clone --depth=1 https://android.googlesource.com/kernel/prebuilts/build-tools && curl -L -o /tmp/gki.tar.gz https://dl.google.com/android/gki/gki-android13-5.10-lts-release.tar.gz && tar -xf /tmp/gki.tar.gz -C $my_top_dir/vendor/aosp_gki/kernel/aarch64 --strip-components=1 && echo "✅ GKI downloaded and extracted to vendor/aosp_gki/kernel/aarch64"
+# basically you gotta:
+# git clone --depth 1 -b android13-5.10-2025-07_r1 https://android.googlesource.com/kernel/common kernel-5.10
 
 
 # ========== CONFIGURATION ==========
