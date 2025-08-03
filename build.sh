@@ -101,3 +101,52 @@ for mod in "${!etc_modules[@]}"; do
 done
 
 echo "[✔] Kernel and modules built successfully."
+
+# ========== ASK USER ABOUT ANYKERNEL3 ==========
+read -p "Do you want to create a TWRP-flashable AnyKernel3 ZIP? (y/n): " choice
+
+if [[ "$choice" == "y" || "$choice" == "Y" ]]; then
+    echo "[*] Creating AnyKernel3 flashable zip..."
+
+    # Paths
+    ANYKERNEL_DIR="$my_top_dir/AnyKernel3"
+    ANYKERNEL_OUT="$my_top_dir/AnyKernel3-penang-kernel.zip"
+
+    # Clone AnyKernel3 if not exists
+    if [ ! -d "$ANYKERNEL_DIR" ]; then
+        git clone https://github.com/osm0sis/AnyKernel3.git "$ANYKERNEL_DIR"
+    fi
+
+    # Clean old files
+    rm -f "$ANYKERNEL_DIR/Image.gz-dtb" "$ANYKERNEL_DIR/Image.gz"
+    rm -rf "$ANYKERNEL_DIR/modules"
+    mkdir -p "$ANYKERNEL_DIR/modules"
+
+    # Copy kernel Image.gz-dtb (adjust if Image.gz or zImage is used)
+    if [ -f "$kernel_out_dir/arch/arm64/boot/Image.gz-dtb" ]; then
+        cp "$kernel_out_dir/arch/arm64/boot/Image.gz-dtb" "$ANYKERNEL_DIR/"
+    else
+        echo "[!] Kernel image not found! Check build output."
+        exit 1
+    fi
+
+    # Copy modules
+    find "$MODULES_STAGING_DIR" -name '*.ko' -exec cp {} "$ANYKERNEL_DIR/modules/" \;
+
+    # Optional: strip modules to reduce size
+    if command -v llvm-strip &> /dev/null; then
+        find "$ANYKERNEL_DIR/modules" -name '*.ko' -exec llvm-strip --strip-unneeded {} \;
+    fi
+
+    # Customize anykernel.sh for your device
+    sed -i 's|^block=.*|block=/dev/block/bootdevice/by-name/boot|' "$ANYKERNEL_DIR/anykernel.sh"
+    sed -i 's|^is_slot_device=.*|is_slot_device=1|' "$ANYKERNEL_DIR/anykernel.sh"
+
+    # Create ZIP
+    cd "$ANYKERNEL_DIR"
+    zip -r9 "$ANYKERNEL_OUT" ./* > /dev/null
+
+    echo "[✔] Flashable zip created at: $ANYKERNEL_OUT"
+else
+    echo "[*] Skipping AnyKernel3 zip creation."
+fi
