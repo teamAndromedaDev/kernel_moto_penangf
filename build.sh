@@ -70,6 +70,10 @@ echo "[✔] Built gki_defconfig"
 # Step 2: Merge penangf.config into the existing .config
 $KERNEL_DIR/scripts/kconfig/merge_config.sh -O $kernel_out_dir $kernel_out_dir/.config $REL_KERNEL_OUT/penangf.config
 echo "[✔] Merged defconfigs successfully"
+
+echo "[*] Avoiding interactive prompts"
+make LLVM=1 LLVM_IAS=1 O=$kernel_out_dir olddefconfig
+
 echo "[*] Building kernel"
 
 # Step 3: Build kernel
@@ -95,22 +99,24 @@ echo "[✔] Built modules"
 
 echo "[*] Building standard modules now"
 # ========== STANDARD MODULES ==========
+export GPS_CHIP_ID=common
+
 build_module ../vendor/mediatek/kernel_modules/met_drv_v3 "$REL_KERNEL_OUT/vendor/mediatek/kernel_modules/met_drv_v3"
 build_module ../vendor/mediatek/kernel_modules/gpu/platform/mt6768 "$REL_KERNEL_OUT/vendor/mediatek/kernel_modules/gpu/platform/mt6768"
 build_module ../vendor/mediatek/kernel_modules/connectivity/common "$REL_KERNEL_OUT/vendor/mediatek/kernel_modules/connectivity/common"
 build_module ../vendor/mediatek/kernel_modules/connectivity/fmradio "$REL_KERNEL_OUT/vendor/mediatek/kernel_modules/connectivity/fmradio"
-build_module ../vendor/mediatek/kernel_modules/connectivity/gps/gps_stp "$REL_KERNEL_OUT/vendor/mediatek/kernel_modules/connectivity/gps/gps_stp"
+#build_module ../vendor/mediatek/kernel_modules/connectivity/gps/gps_stp "$REL_KERNEL_OUT/vendor/mediatek/kernel_modules/connectivity/gps/gps_stp"
 
 # ========== ETC SPECIAL MODULES ==========
 cd "$kernel_out_dir"
 
 declare -A etc_modules=(
-    [udc]="../../ETC/udc_lib.ko_intermediates/LINKED"
-    [connfem]="../../ETC/connfem.ko_intermediates/LINKED"
-    [wmt_drv]="../../ETC/wmt_drv.ko_intermediates/LINKED"
-    [bt_drv]="../../ETC/bt_drv_connac1x.ko_intermediates/LINKED"
-    [wmt_chrdev_wifi]="../../ETC/wmt_chrdev_wifi.ko_intermediates/LINKED"
-    [wlan_drv_gen4m]="../../ETC/wlan_drv_gen4m.ko_intermediates/LINKED"
+#    [udc]="../../ETC/udc_lib.ko_intermediates/LINKED"
+#    [connfem]="../../ETC/connfem.ko_intermediates/LINKED"
+#    [wmt_drv]="../../ETC/wmt_drv.ko_intermediates/LINKED"
+#    [bt_drv]="../../ETC/bt_drv_connac1x.ko_intermediates/LINKED"
+#    [wmt_chrdev_wifi]="../../ETC/wmt_chrdev_wifi.ko_intermediates/LINKED"
+#    [wlan_drv_gen4m]="../../ETC/wlan_drv_gen4m.ko_intermediates/LINKED"
 )
 
 for mod in "${!etc_modules[@]}"; do
@@ -125,17 +131,16 @@ echo "[✔] Kernel and modules built successfully."
 
 # ========== ASK USER ABOUT ANYKERNEL3 ==========
 read -p "Do you want to create a TWRP-flashable AnyKernel3 ZIP? (y/n): " choice
-
-if [[ "$choice" == "y" || "$choice" == "Y" ]]; then
+case "$choice" in
+  [Yy])
     echo "[*] Creating AnyKernel3 flashable zip..."
-
     # Paths
     ANYKERNEL_DIR="$my_top_dir/AnyKernel3"
     ANYKERNEL_OUT="$my_top_dir/AnyKernel3-penang-kernel.zip"
 
     # Clone AnyKernel3 if not exists
     if [ ! -d "$ANYKERNEL_DIR" ]; then
-        git clone https://github.com/osm0sis/AnyKernel3.git "$ANYKERNEL_DIR"
+      git clone https://github.com/r0ddty/AnyKernel3 "$ANYKERNEL_DIR"
     fi
 
     # Clean old files
@@ -144,11 +149,11 @@ if [[ "$choice" == "y" || "$choice" == "Y" ]]; then
     mkdir -p "$ANYKERNEL_DIR/modules"
 
     # Copy kernel Image.gz-dtb (adjust if Image.gz or zImage is used)
-    if [ -f "$kernel_out_dir/arch/arm64/boot/Image.gz-dtb" ]; then
-        cp "$kernel_out_dir/arch/arm64/boot/Image.gz-dtb" "$ANYKERNEL_DIR/"
+    if [ -f "$kernel_out_dir/arch/arm64/boot/Image.gz" ]; then
+      cp "$kernel_out_dir/arch/arm64/boot/Image.gz" "$ANYKERNEL_DIR/"
     else
-        echo "[!] Kernel image not found! Check build output."
-        exit 1
+      echo "[!] Kernel image not found! Check build output."
+      exit 1
     fi
 
     # Copy modules
@@ -156,7 +161,7 @@ if [[ "$choice" == "y" || "$choice" == "Y" ]]; then
 
     # Optional: strip modules to reduce size
     if command -v llvm-strip &> /dev/null; then
-        find "$ANYKERNEL_DIR/modules" -name '*.ko' -exec llvm-strip --strip-unneeded {} \;
+      find "$ANYKERNEL_DIR/modules" -name '*.ko' -exec llvm-strip --strip-unneeded {} \;
     fi
 
     # Customize anykernel.sh for your device
@@ -164,10 +169,14 @@ if [[ "$choice" == "y" || "$choice" == "Y" ]]; then
     sed -i 's|^is_slot_device=.*|is_slot_device=1|' "$ANYKERNEL_DIR/anykernel.sh"
 
     # Create ZIP
-    cd "$ANYKERNEL_DIR"
-    zip -r9 "$ANYKERNEL_OUT" ./* > /dev/null
+    (cd "$ANYKERNEL_DIR" && zip -r9 "$ANYKERNEL_OUT" ./* > /dev/null)
 
     echo "[✔] Flashable zip created at: $ANYKERNEL_OUT"
-else
+    ;;
+  [Nn])
     echo "[*] Skipping AnyKernel3 zip creation."
-fi
+    ;;
+  *)
+    echo "Invalid choice: '$choice'. Please answer 'y' or 'n'."
+    ;;
+esac
