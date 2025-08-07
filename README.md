@@ -24,6 +24,8 @@ How to even build this thing
 2. clone kernel to kernel-5.10 directory
 3. move kernel-5.10/build.sh to current directory 
 4. as described in the script, clone for the structure:
+
+```
 .
 ├── kernel  
 │   ├── prebuilts  
@@ -32,7 +34,9 @@ How to even build this thing
    ├── build-tools  
    └── clang/host/linux-x86/clang-r416183b
    (https://android.googlesource.com/platform//prebuilts/clang/host/linux-x86/+archive/b669748458572622ed716407611633c5415da25c/clang-r416183b.tar.gz)
-   ```
+```
+(idk how to make multiline monospace)
+```
 my_top_dir=$PWD
 mkdir -vp $my_top_dir/kernel
 cd $my_top_dir/kernel
@@ -47,7 +51,6 @@ cd $my_top_dir
 ```
 5. clone this to top directory:
 ```
-# Branch matching your device
 BRANCH="android-14-release-uhas34.29"
 
 # MET performance driver v3
