@@ -17,6 +17,7 @@ Please read the Documentation/process/changes.rst file, as it contains the
 requirements for building and running the kernel, and information about
 the problems which may result by upgrading your kernel.
 
+How to even build this thing 
 ============
 
 1. make a new directory(top directory)
